@@ -9,21 +9,22 @@ load_dotenv()
 
 st.set_page_config(page_title="Vendor Risk & Performance Dashboard", layout="wide")
 
-raw_password = os.getenv('SUPABASE_PASSWORD', '')
-SUPABASE_PASSWORD = urllib.parse.quote_plus(raw_password)
+if "SUPABASE_PASSWORD" in st.secrets:
+    raw_password = st.secrets["SUPABASE_PASSWORD"]
+else:
+    raw_password = os.getenv('SUPABASE_PASSWORD', '')
 
+SUPABASE_PASSWORD = urllib.parse.quote_plus(raw_password)
 SUPABASE_URI = f"postgresql://postgres.aapsfndsgoepmlsefosq:{SUPABASE_PASSWORD}@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600) 
 def load_data():
     engine = create_engine(SUPABASE_URI)
     query = "SELECT * FROM v2_ml_training_data"
     df = pd.read_sql(query, engine)
     
-
     df['Delay_Days'] = df['Delivered in Full Days'] - df['Requested Lead Time']
     return df
-
 def main():
     st.title("Vendor Risk & Performance Dashboard")
     st.markdown("Automated historical analysis of vendor delivery reliability and expected head times.")
