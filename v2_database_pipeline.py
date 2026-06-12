@@ -1,19 +1,19 @@
-import streamlit as st
 import pandas as pd
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 from dotenv import load_dotenv
 
+# Load the hidden environment variables
 load_dotenv()
 
-st.set_page_config(page_title="Vendor Risk & Performance Dashboard", layout="wide")
+INPUT_FILE = os.getenv('RAW_DATA_PATH', 'raw_data.xlsx')
+OUTPUT_FILE = os.getenv('CLEAN_DATA_PATH', 'v2_ml_ready_features.csv')
 
-if "SUPABASE_PASSWORD" in st.secrets:
-    raw_password = st.secrets["SUPABASE_PASSWORD"]
-else:
-    raw_password = os.getenv('SUPABASE_PASSWORD', '')
+# Safely pull the password from .env
+raw_password = os.getenv('SUPABASE_PASSWORD', '')
 
+# Construct the Supabase URI using SQLAlchemy's secure URL builder
 SUPABASE_URI = URL.create(
     drivername="postgresql",
     username="postgres.aapsfndsgoepmlsefosq",
@@ -23,14 +23,6 @@ SUPABASE_URI = URL.create(
     database="postgres"
 )
 
-@st.cache_data(ttl=3600) 
-def load_data():
-    engine = create_engine(SUPABASE_URI)
-    query = "SELECT * FROM v2_ml_training_data"
-    df = pd.read_sql(query, engine)
-    
-    df['Delay_Days'] = df['Delivered in Full Days'] - df['Requested Lead Time']
-    return df
 def main():
     print("\n" + "="*50)
     print("STARTING VERSION 2.0 DATA PIPELINE")
@@ -87,7 +79,7 @@ def main():
         
         df.to_sql('v2_ml_training_data', engine, if_exists='replace', index=False)
         
-        print("SUCCESS! V2 Data is now live in the Cloud!")
+        print("SUCCESS! V2 Data is now live in the Cloud.")
     except Exception as e:
         print(f"Failed to write to Supabase: {e}")
 
