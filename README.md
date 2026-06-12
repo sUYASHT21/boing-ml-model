@@ -27,6 +27,7 @@ MODEL_PATH=/path/to/your/v2_rf_model.pkl
 ## Database Secrets
 ```bash
 SUPABASE_PASSWORD=your_database_password_here
+SUPABASE_URI=your_url
 ```
 ---
 ## Launch the Dashboard
