@@ -1,17 +1,26 @@
 import streamlit as st
 import pandas as pd
 import os
+import urllib.parse
+from sqlalchemy import create_engine
 from dotenv import load_dotenv
 
 load_dotenv()
 
 st.set_page_config(page_title="Vendor Risk & Performance Dashboard", layout="wide")
 
-DATA_PATH = os.getenv('CLEAN_DATA_PATH', 'v2_ml_ready_features.csv')
+raw_password = os.getenv('SUPABASE_PASSWORD', '')
+SUPABASE_PASSWORD = urllib.parse.quote_plus(raw_password)
 
-@st.cache_data
+SUPABASE_URI = f"postgresql://postgres.aapsfndsgoepmlsefosq:{SUPABASE_PASSWORD}@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
+
+@st.cache_data(ttl=3600)
 def load_data():
-    df = pd.read_csv(DATA_PATH)
+    engine = create_engine(SUPABASE_URI)
+    query = "SELECT * FROM v2_ml_training_data"
+    df = pd.read_sql(query, engine)
+    
+
     df['Delay_Days'] = df['Delivered in Full Days'] - df['Requested Lead Time']
     return df
 
