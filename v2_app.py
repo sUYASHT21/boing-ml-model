@@ -1,21 +1,39 @@
 import streamlit as st
 import pandas as pd
 import os
-import urllib.parse
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 from dotenv import load_dotenv
 
 load_dotenv()
 
 st.set_page_config(page_title="Vendor Risk & Performance Dashboard", layout="wide")
 
-if "SUPABASE_PASSWORD" in st.secrets:
+# Smart Password Routing with Error Handling
+try:
+    # Try to pull from Streamlit Cloud Secrets
     raw_password = st.secrets["SUPABASE_PASSWORD"]
-else:
+except Exception:
+    # If the secrets file isn't found (like on your local Mac), fallback to the .env file
     raw_password = os.getenv('SUPABASE_PASSWORD', '')
 
-SUPABASE_PASSWORD = urllib.parse.quote_plus(raw_password)
-SUPABASE_URI = f"postgresql://postgres.aapsfndsgoepmlsefosq:{SUPABASE_PASSWORD}@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
+SUPABASE_URI = URL.create(
+    drivername="postgresql",
+    username="postgres.aapsfndsgoepmlsefosq",
+    password=raw_password, 
+    host="aws-1-ap-northeast-1.pooler.supabase.com",
+    port=5432,
+    database="postgres"
+)
+
+SUPABASE_URI = URL.create(
+    drivername="postgresql",
+    username="postgres.aapsfndsgoepmlsefosq",
+    password=raw_password, 
+    host="aws-1-ap-northeast-1.pooler.supabase.com",
+    port=5432,
+    database="postgres"
+)
 
 @st.cache_data(ttl=3600) 
 def load_data():
@@ -25,6 +43,7 @@ def load_data():
     
     df['Delay_Days'] = df['Delivered in Full Days'] - df['Requested Lead Time']
     return df
+
 def main():
     st.title("Vendor Risk & Performance Dashboard")
     st.markdown("Automated historical analysis of vendor delivery reliability and expected head times.")
