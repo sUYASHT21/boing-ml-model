@@ -1,14 +1,20 @@
 import pandas as pd
+import os
 import urllib.parse
 from sqlalchemy import create_engine
-import warnings
+from dotenv import load_dotenv
 
-warnings.filterwarnings('ignore')
+# Load the hidden environment variables
+load_dotenv()
 
-INPUT_FILE = '/Users/suyashtatiya/DataCleaning/6Month%_FullData_data.xlsx' 
-OUTPUT_FILE = '/Users/suyashtatiya/DataCleaning/V2_model/v2_ml_ready_features.csv'
+INPUT_FILE = os.getenv('RAW_DATA_PATH', 'raw_data.xlsx')
+OUTPUT_FILE = os.getenv('CLEAN_DATA_PATH', 'v2_ml_ready_features.csv')
 
-SUPABASE_PASSWORD = urllib.parse.quote_plus("@Sushant#21")
+# Safely pull the password from .env so it never goes to GitHub
+raw_password = os.getenv('SUPABASE_PASSWORD', 'your_password_here')
+SUPABASE_PASSWORD = urllib.parse.quote_plus(raw_password)
+
+# Construct the URI dynamically
 SUPABASE_URI = f"postgresql://postgres.aapsfndsgoepmlsefosq:{SUPABASE_PASSWORD}@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
 
 def main():

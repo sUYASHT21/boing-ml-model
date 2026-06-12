@@ -1,9 +1,13 @@
 import streamlit as st
 import pandas as pd
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 st.set_page_config(page_title="Vendor Risk & Performance Dashboard", layout="wide")
 
-DATA_PATH = '/Users/suyashtatiya/DataCleaning/V2_model/v2_ml_ready_features.csv'
+DATA_PATH = os.getenv('CLEAN_DATA_PATH', 'v2_ml_ready_features.csv')
 
 @st.cache_data
 def load_data():
