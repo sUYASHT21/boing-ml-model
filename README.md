@@ -17,6 +17,13 @@ An automated Business Intelligence (BI) dashboard that analyzes historical vendo
 ### 3. AI Model Training (`v2_model_training.py` - Optional)
 * **What it does:** An offline script that trains a Random Forest Regressor on the historical data. *(Note: This predictive model is preserved for architectural reference, but the primary dashboard has been pivoted to a pure BI logic model based on stakeholder requirements).*
 
+# Data Paths
+RAW_DATA_PATH=/path/to/your/raw_data.xlsx
+CLEAN_DATA_PATH=/path/to/your/v2_ml_ready_features.csv
+MODEL_PATH=/path/to/your/v2_rf_model.pkl
+
+# Database Secrets
+SUPABASE_PASSWORD=your_database_password_here
 ---
 ## Launch the Dashboard
 ```bash
