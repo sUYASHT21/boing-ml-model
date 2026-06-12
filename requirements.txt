@@ -1,0 +1,6 @@
+pandas
+streamlit
+python-dotenv
+openpyxl
+sqlalchemy
+scikit-learn
