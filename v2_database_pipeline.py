@@ -1,22 +1,36 @@
+import streamlit as st
 import pandas as pd
 import os
-import urllib.parse
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 from dotenv import load_dotenv
 
-# Load the hidden environment variables
 load_dotenv()
 
-INPUT_FILE = os.getenv('RAW_DATA_PATH', 'raw_data.xlsx')
-OUTPUT_FILE = os.getenv('CLEAN_DATA_PATH', 'v2_ml_ready_features.csv')
+st.set_page_config(page_title="Vendor Risk & Performance Dashboard", layout="wide")
 
-# Safely pull the password from .env so it never goes to GitHub
-raw_password = os.getenv('SUPABASE_PASSWORD', 'your_password_here')
-SUPABASE_PASSWORD = urllib.parse.quote_plus(raw_password)
+if "SUPABASE_PASSWORD" in st.secrets:
+    raw_password = st.secrets["SUPABASE_PASSWORD"]
+else:
+    raw_password = os.getenv('SUPABASE_PASSWORD', '')
 
-# Construct the URI dynamically
-SUPABASE_URI = f"postgresql://postgres.aapsfndsgoepmlsefosq:{SUPABASE_PASSWORD}@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
+SUPABASE_URI = URL.create(
+    drivername="postgresql",
+    username="postgres.aapsfndsgoepmlsefosq",
+    password=raw_password, 
+    host="aws-1-ap-northeast-1.pooler.supabase.com",
+    port=5432,
+    database="postgres"
+)
 
+@st.cache_data(ttl=3600) 
+def load_data():
+    engine = create_engine(SUPABASE_URI)
+    query = "SELECT * FROM v2_ml_training_data"
+    df = pd.read_sql(query, engine)
+    
+    df['Delay_Days'] = df['Delivered in Full Days'] - df['Requested Lead Time']
+    return df
 def main():
     print("\n" + "="*50)
     print("STARTING VERSION 2.0 DATA PIPELINE")
