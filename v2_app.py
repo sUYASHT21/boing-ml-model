@@ -1,107 +1,127 @@
 import streamlit as st
 import pandas as pd
-import joblib
-import datetime
 
-st.set_page_config(page_title="Supply Chain AI", layout="wide")
+st.set_page_config(page_title="Vendor Risk & Performance Dashboard", layout="wide")
 
 DATA_PATH = '/Users/suyashtatiya/DataCleaning/V2_model/v2_ml_ready_features.csv'
-MODEL_PATH = '/Users/suyashtatiya/DataCleaning/V2_model/v2_rf_model.pkl'
 
 @st.cache_data
 def load_data():
-    return pd.read_csv(DATA_PATH)
-
-@st.cache_resource
-def load_model():
-    return joblib.load(MODEL_PATH)
+    df = pd.read_csv(DATA_PATH)
+    df['Delay_Days'] = df['Delivered in Full Days'] - df['Requested Lead Time']
+    return df
 
 def main():
-    st.title("Predictive Lead Time Engine")
+    st.title("Vendor Risk & Performance Dashboard")
+    st.markdown("Automated historical analysis of vendor delivery reliability and expected head times.")
     
     try:
         df = load_data()
-        model = load_model()
     except Exception as e:
-        st.error(f"Error loading files: {e}")
+        st.error(f"Error loading data: {e}")
         return
 
-    vendors = sorted(df['Vendor Name - ID'].dropna().unique())
-    programs = sorted(df['Program (MG4)'].dropna().unique())
-
-    st.sidebar.header("Order Parameters")
-    selected_vendor = st.sidebar.selectbox("Vendor Name", vendors)
-    selected_program = st.sidebar.selectbox("Program (MG4)", programs)
-    requested_days = st.sidebar.number_input("Requested Lead Time (Days)", min_value=1, value=30)
+    vendor_stats = df.groupby('Vendor Name - ID').agg(
+        Total_Orders=('Vendor Name - ID', 'count'),
+        Avg_Requested_Days=('Requested Lead Time', 'mean'),
+        Avg_Actual_Days=('Delivered in Full Days', 'mean'),
+        Avg_Delay=('Delay_Days', 'mean')
+    ).reset_index()
     
-    po_date = st.sidebar.date_input("PO Creation Date", datetime.date.today())
-    order_month = po_date.month
-
-    if st.sidebar.button("Predict Lead Time", type="primary"):
-        
-        is_valid_supplier = len(df[(df['Vendor Name - ID'] == selected_vendor) & (df['Program (MG4)'] == selected_program)]) > 0
-
-        if not is_valid_supplier:
-            st.error(f"STOP: '{selected_vendor}' does not manufacture parts for the '{selected_program}' program.")
-            st.info("Prediction aborted. Please review the leaderboard below and select a highlighted vendor.")
+    vendor_stats['Avg_Requested_Days'] = vendor_stats['Avg_Requested_Days'].round(0).astype(int)
+    vendor_stats['Avg_Actual_Days'] = vendor_stats['Avg_Actual_Days'].round(0).astype(int)
+    vendor_stats['Avg_Delay'] = vendor_stats['Avg_Delay'].round(0).astype(int)
+    
+    def categorize_vendor(delay):
+        if delay <= 0:
+            return "🟢 Reliable (On Time / Early)"
+        elif 1 <= delay <= 10:
+            return "🟡 Late (1-10 Days)"
         else:
-            vendor_history_data = df[df['Vendor Name - ID'] == selected_vendor]['Vendor_Historical_Avg_Days']
-            vendor_avg = vendor_history_data.iloc[0] if not vendor_history_data.empty else requested_days
-
-            input_data = pd.DataFrame({
-                'Vendor Name - ID': [selected_vendor],
-                'Program (MG4)': [selected_program],
-                'Requested Lead Time': [requested_days],
-                'Order_Month': [order_month],
-                'Vendor_Historical_Avg_Days': [vendor_avg]
-            })
-
-            prediction = model.predict(input_data)[0]
-            predicted_days = int(round(prediction))
-            delay = predicted_days - requested_days
+            return "🔴 Critically Late (11+ Days)"
             
-            expected_delivery_date = po_date + datetime.timedelta(days=predicted_days)
-
-            st.subheader("AI Prediction")
+    def categorize_speed(days):
+        if days <= 30:
+            return "⚡ Fast (≤ 30 Days)"
+        elif days <= 90:
+            return "⏱️ Standard (31-90 Days)"
+        else:
+            return "🐢 Slow (91+ Days)"
             
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Requested Days", requested_days)
-            col2.metric("Predicted Actual Days", predicted_days)
-            col3.metric("Est. Delivery Date", expected_delivery_date.strftime("%b %d, %Y"))
+    vendor_stats['Risk Category'] = vendor_stats['Avg_Delay'].apply(categorize_vendor)
+    vendor_stats['Speed Category'] = vendor_stats['Avg_Actual_Days'].apply(categorize_speed)
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("🟢 Reliable Vendors", len(vendor_stats[vendor_stats['Avg_Delay'] <= 0]))
+    col2.metric("🟡 Late Vendors", len(vendor_stats[(vendor_stats['Avg_Delay'] > 0) & (vendor_stats['Avg_Delay'] <= 10)]))
+    col3.metric("🔴 Critical Vendors", len(vendor_stats[vendor_stats['Avg_Delay'] > 10]))
+    
+    st.markdown("---")
+    
+    st.subheader("📊 Fleet-Wide Vendor Analytics")
+    chart_col1, chart_col2 = st.columns(2)
+    
+    with chart_col1:
+        st.markdown("**Risk Distribution (Delay)**")
+        risk_counts = vendor_stats['Risk Category'].value_counts()
+        st.bar_chart(risk_counts)
+        
+    with chart_col2:
+        st.markdown("**Delivery Speed Distribution (Head Time)**")
+        speed_counts = vendor_stats['Speed Category'].value_counts()
+        st.bar_chart(speed_counts)
+    
+    st.markdown("---")
+    
+    display_df = vendor_stats[['Risk Category', 'Vendor Name - ID', 'Total_Orders', 'Avg_Requested_Days', 'Avg_Actual_Days', 'Avg_Delay']]
+    display_df.columns = [
+        'Risk Category', 
+        'Vendor Name', 
+        'Total Historical Orders', 
+        'Average Contract Deadline', 
+        'Expected Delivery (Head Time)', 
+        'Average Delay (Days)'
+    ]
+    
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🟢 Ranked by Reliability", 
+        "⚡ Fastest Overall", 
+        "🔴 Critical (Late)", 
+        "🐢 Slowest (Head Time Warning)"
+    ])
+    
+    with tab1:
+        st.subheader("Most Reliable Vendors")
+        st.write("Sorted by lowest average delay. They consistently hit their contract deadlines.")
+        rel_df = display_df.sort_values(by='Average Delay (Days)').reset_index(drop=True)
+        rel_df.index = rel_df.index + 1
+        st.dataframe(rel_df, use_container_width=True, height=400)
+
+    with tab2:
+        st.subheader("Fastest Overall Vendors")
+        st.write("Sorted by lowest Expected Delivery (Head Time). Best for urgent orders.")
+        fast_df = display_df.sort_values(by='Expected Delivery (Head Time)').reset_index(drop=True)
+        fast_df.index = fast_df.index + 1
+        st.dataframe(fast_df, use_container_width=True, height=400)
+
+    with tab3:
+        st.subheader("Critical Risk: Consistently Late")
+        st.write("Vendors averaging 11+ days late. Highest risk of missing deadlines.")
+        crit_df = display_df[display_df['Risk Category'].str.contains("🔴")]
+        
+        if not crit_df.empty:
+            crit_df = crit_df.sort_values(by='Average Delay (Days)', ascending=False).reset_index(drop=True)
+            crit_df.index = crit_df.index + 1
+            st.dataframe(crit_df, use_container_width=True, height=400)
+        else:
+            st.success("No vendors are currently in the critical delay category.")
             
-            if delay > 0:
-                col4.metric("Projected Delay", f"{delay} Days Late", delta=-delay, delta_color="inverse")
-            elif delay < 0:
-                col4.metric("Projected Early", f"{abs(delay)} Days Early", delta=abs(delay), delta_color="normal")
-            else:
-                col4.metric("Projected Status", "Exactly On Time", delta=0)
-
-        st.markdown("---")
-        st.subheader("Global Vendor Leaderboard")
-        st.write("Highlighted vendors supply the selected program. Ranked by historical speed.")
-        
-        leaderboard = df[['Vendor Name - ID', 'Vendor_Historical_Avg_Days']].drop_duplicates()
-        
-        program_vendors = df[df['Program (MG4)'] == selected_program]['Vendor Name - ID'].unique()
-        leaderboard['Supplies Selected Program?'] = leaderboard['Vendor Name - ID'].apply(lambda x: 'Yes' if x in program_vendors else 'No')
-        
-        leaderboard['Currently Selected?'] = leaderboard['Vendor Name - ID'].apply(lambda x: '<-- Selected' if x == selected_vendor else '')
-
-        leaderboard = leaderboard.sort_values(
-            by=['Supplies Selected Program?', 'Vendor_Historical_Avg_Days'], 
-            ascending=[False, True]
-        ).reset_index(drop=True)
-        
-        leaderboard.index = leaderboard.index + 1
-        leaderboard = leaderboard[['Currently Selected?', 'Vendor Name - ID', 'Vendor_Historical_Avg_Days', 'Supplies Selected Program?']]
-        
-        def highlight_yes_rows(row):
-            if row['Supplies Selected Program?'] == 'Yes':
-                return ['background-color: rgba(46, 125, 50, 0.2)'] * len(row)
-            return [''] * len(row)
-
-        styled_leaderboard = leaderboard.style.apply(highlight_yes_rows, axis=1)
-        st.dataframe(styled_leaderboard, use_container_width=True)
+    with tab4:
+        st.subheader("Critical Risk: Slowest Head Times")
+        st.write("Vendors with the longest overall delivery times, regardless of whether they hit their contract deadlines.")
+        slow_df = display_df.sort_values(by='Expected Delivery (Head Time)', ascending=False).reset_index(drop=True)
+        slow_df.index = slow_df.index + 1
+        st.dataframe(slow_df, use_container_width=True, height=400)
 
 if __name__ == "__main__":
     main()
