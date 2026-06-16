@@ -219,7 +219,6 @@ def main():
                 
                 with col_a:
                     pred_vendor = st.selectbox("Select Vendor:", sorted(df['Vendor Name - ID'].unique()))
-                    pred_program = st.selectbox("Select Program (MG4):", sorted(df['Program (MG4)'].unique()))
                 
                 with col_b:
                     pred_lead_time = st.number_input("Requested Lead Time (Contract Days):", min_value=0, value=30)
@@ -234,9 +233,15 @@ def main():
                     if pd.isna(historical_avg):
                         historical_avg = df['Delivered in Full Days'].mean()
                         
+                    vendor_programs = df[df['Vendor Name - ID'] == pred_vendor]['Program (MG4)']
+                    if not vendor_programs.empty:
+                        auto_program = vendor_programs.mode()[0]
+                    else:
+                        auto_program = 'Unknown'
+                        
                     input_data = pd.DataFrame({
                         'Vendor Name - ID': [pred_vendor],
-                        'Program (MG4)': [pred_program],
+                        'Program (MG4)': [auto_program],
                         'Requested Lead Time': [pred_lead_time],
                         'Order_Month': [order_month],
                         'Vendor_Historical_Avg_Days': [historical_avg]
