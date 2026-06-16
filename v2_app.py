@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 from dotenv import load_dotenv
@@ -9,22 +10,10 @@ load_dotenv()
 
 st.set_page_config(page_title="Vendor Risk & Performance Dashboard", layout="wide")
 
-# Smart Password Routing with Error Handling
 try:
-    # Try to pull from Streamlit Cloud Secrets
     raw_password = st.secrets["SUPABASE_PASSWORD"]
 except Exception:
-    # If the secrets file isn't found (like on your local Mac), fallback to the .env file
     raw_password = os.getenv('SUPABASE_PASSWORD', '')
-
-SUPABASE_URI = URL.create(
-    drivername="postgresql",
-    username="postgres.aapsfndsgoepmlsefosq",
-    password=raw_password, 
-    host="aws-1-ap-northeast-1.pooler.supabase.com",
-    port=5432,
-    database="postgres"
-)
 
 SUPABASE_URI = URL.create(
     drivername="postgresql",
@@ -40,8 +29,8 @@ def load_data():
     engine = create_engine(SUPABASE_URI)
     query = "SELECT * FROM v2_ml_training_data"
     df = pd.read_sql(query, engine)
-    
     df['Delay_Days'] = df['Delivered in Full Days'] - df['Requested Lead Time']
+    df['Delivery_Date'] = pd.to_datetime(df['Delivery_Date'], errors='coerce')
     return df
 
 def main():
@@ -54,7 +43,47 @@ def main():
         st.error(f"Error loading data: {e}")
         return
 
-    vendor_stats = df.groupby('Vendor Name - ID').agg(
+    min_date = df['Delivery_Date'].min().date()
+    max_date = df['Delivery_Date'].max().date()
+
+    st.sidebar.header("Timeline Filter")
+    
+    preset = st.sidebar.radio(
+        "Quick Select",
+        ["All Time", "Last 30 Days", "Last Quarter (90 Days)", "Last Year", "Custom Range"]
+    )
+
+    if preset == "Last 30 Days":
+        start_date = max_date - datetime.timedelta(days=30)
+        end_date = max_date
+    elif preset == "Last Quarter (90 Days)":
+        start_date = max_date - datetime.timedelta(days=90)
+        end_date = max_date
+    elif preset == "Last Year":
+        start_date = max_date - datetime.timedelta(days=365)
+        end_date = max_date
+    elif preset == "All Time":
+        start_date = min_date
+        end_date = max_date
+    else:
+        selected_dates = st.sidebar.date_input(
+            "Select Custom Range",
+            value=(min_date, max_date),
+            min_value=min_date,
+            max_value=max_date
+        )
+        if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
+            start_date, end_date = selected_dates
+        else:
+            start_date, end_date = min_date, max_date
+
+    filtered_df = df[(df['Delivery_Date'].dt.date >= start_date) & (df['Delivery_Date'].dt.date <= end_date)]
+
+    if filtered_df.empty:
+        st.warning("No data found for the selected date range.")
+        return
+
+    vendor_stats = filtered_df.groupby('Vendor Name - ID').agg(
         Total_Orders=('Vendor Name - ID', 'count'),
         Avg_Requested_Days=('Requested Lead Time', 'mean'),
         Avg_Actual_Days=('Delivered in Full Days', 'mean'),
