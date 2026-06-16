@@ -31,7 +31,7 @@ st.markdown(
         z-index: 1;
     }
     </style>
-    <div class="watermark">CONFIDENTIAL DEMO</div>
+    <div class="watermark">CONFIDENTIAL</div>
     """,
     unsafe_allow_html=True
 )
